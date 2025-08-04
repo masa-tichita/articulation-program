@@ -59,12 +59,12 @@ source .venv/bin/activate
 アプリケーションが起動すると、ブラウザで `http://localhost:8501` にアクセスできます。
 
 ## 開発
-- フォーマッター
+- フォーマッター(ruff)
 ```bash
 # uvがすでにターミナルで起動している場合は、`uv run` は不要
 (uv run) poe fmt
 ```
-- リンター
+- リンター(pyright)
 ```bash
 # uvがすでにターミナルで起動している場合は、`uv run` は不要
 (uv run) poe lint
