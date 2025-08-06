@@ -7,7 +7,6 @@ import pandas as pd
 class AppData(BaseModel):
     name: str
     usage: int
-    genre: str
     color: str
 
     @classmethod
@@ -23,7 +22,6 @@ class AppData(BaseModel):
         return {
             it.name: {
                 "usage": it.usage,
-                "genre": it.genre,
                 "color": it.color,
             }
             for it in items
