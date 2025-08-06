@@ -8,6 +8,7 @@ class AppData(BaseModel):
     name: str
     usage: int
     genre: str
+    color: str
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Mapping]) -> list["AppData"]:
@@ -19,4 +20,11 @@ class AppData(BaseModel):
 
     @staticmethod
     def to_solver_dict(items: Iterable["AppData"]) -> dict[str, dict]:
-        return {it.name: {"usage": it.usage, "genre": it.genre} for it in items}
+        return {
+            it.name: {
+                "usage": it.usage,
+                "genre": it.genre,
+                "color": it.color,
+            }
+            for it in items
+        }

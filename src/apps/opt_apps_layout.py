@@ -1,120 +1,101 @@
 import pulp
-
+import math
 from utils.system import timer
 from loguru import logger
+from modules.const import AppData
+
+# Define location coordinates (assuming 4 columns)
+location_coords = {}
+# Main grid: 6 rows, 4 columns
+for i in range(24):
+    row = i // 4
+    col = i % 4
+    location_coords[i + 1] = (row, col)
+# Dock: 1 row, 4 columns, placed below the main grid
+for i in range(4):
+    location_coords[i + 25] = (6, i)
+
+# Calculate distances
+distances = {}
+locations_list = list(range(1, 29))
+for i in locations_list:
+    for k in locations_list:
+        if i < k:
+            (r1, c1) = location_coords[i]
+            (r2, c2) = location_coords[k]
+            dist = math.sqrt((r1 - r2) ** 2 + (c1 - c2) ** 2)
+            distances[(i, k)] = dist if dist > 0 else 1e-9 # Avoid division by zero
 
 
 @timer
 @logger.catch(reraise=True)
-def solve_layout(apps_data, folder_penalty_val):
+def solve_layout(apps: list[AppData], weights: dict, color_penalty_val: int = 0):
     """
     与えられたアプリデータとパラメータで最適配置を計算する関数
     """
     locations = list(range(1, 29))
-    weights = {
-        1: 50,
-        2: 55,
-        3: 55,
-        4: 50,
-        5: 45,
-        6: 45,
-        7: 45,
-        8: 45,
-        9: 35,
-        10: 25,
-        11: 25,
-        12: 35,
-        13: 25,
-        14: 60,
-        15: 60,
-        16: 25,
-        17: 25,
-        18: 60,
-        19: 60,
-        20: 25,
-        21: 35,
-        22: 25,
-        23: 25,
-        24: 35,
-        25: 45,
-        26: 40,
-        27: 40,
-        28: 45,
-    }
-    apps = list(apps_data.keys())
-    app_usage = {j: data["usage"] for j, data in apps_data.items()}
-    app_genre = {j: data["genre"] for j, data in apps_data.items()}
-    folders = list(set(app_genre.values()))
-    folder_capacity = 9
-    M = len(apps)
-
     # PuLPモデルの構築
-    prob = pulp.LpProblem("AppLayoutOptimization", pulp.LpMaximize)
-    x = pulp.LpVariable.dicts("AppAtLocation", (apps, locations), cat="Binary")
-    y = pulp.LpVariable.dicts("FolderAtLocation", (folders, locations), cat="Binary")
-    z = pulp.LpVariable.dicts("AppInFolder", (apps, folders), cat="Binary")
-    q = pulp.LpVariable.dicts("AuxiliaryVar", (apps, folders, locations), cat="Binary")
+    # weights = {i: 1 for i in locations} # Uniform weights
+    app_map = {app.name: app for app in apps}
+    app_names = list(app_map.keys())
+    app_usage = {app.name: app.usage for app in apps}
+    app_color = {app.name: app.color for app in apps}
 
-    direct_placement_value = pulp.lpSum(
-        weights[i] * app_usage[j] * x[j][i] for j in apps for i in locations
+    prob = pulp.LpProblem("AppLayoutOptimization", pulp.LpMaximize)
+    x = pulp.LpVariable.dicts("AppAtLocation", (app_names, locations), cat="Binary")
+
+    # --- 目的関数 ---
+    base_value = pulp.lpSum(
+        weights[i] * app_usage[j] * x[j][i] for j in app_names for i in locations
     )
-    folder_placement_value = pulp.lpSum(
-        (weights[i] - folder_penalty_val) * app_usage[j] * q[j][f][i]
-        for j in apps
-        for f in folders
-        for i in locations
-    )
-    prob += direct_placement_value + folder_placement_value
+    prob += base_value
+
+    # --- 色のペナルティ ---
+    if color_penalty_val > 0:
+        app_indices = {name: i for i, name in enumerate(app_names)}
+        pair_vars = pulp.LpVariable.dicts(
+            "PairVar",
+            (
+                (i, k, j, l)
+                for i in locations for k in locations if i < k
+                for j in app_names for l in app_names if app_indices[j] < app_indices[l]
+            ),
+            cat="Binary",
+        )
+
+        for i in locations:
+            for k in locations:
+                if i < k:
+                    for j in app_names:
+                        for l in app_names:
+                            if app_indices[j] < app_indices[l]:
+                                idx = (i, k, j, l)
+                                prob += pair_vars[idx] <= x[j][i]
+                                prob += pair_vars[idx] <= x[l][k]
+                                prob += pair_vars[idx] >= x[j][i] + x[l][k] - 1
+
+        color_penalty = pulp.lpSum(
+            color_penalty_val * (1 / distances.get((i, k), 1e-9)) * pair_vars[(i, k, j, l)]
+            for i, k, j, l in pair_vars
+            if app_color.get(j) == app_color.get(l)
+        )
+        prob += -color_penalty
 
     # --- 制約条件 ---
-    for j in apps:
-        prob += (
-            pulp.lpSum(x[j][i] for i in locations)
-            + pulp.lpSum(z[j][f] for f in folders)
-            == 1
-        )
+    for j in app_names:
+        prob += pulp.lpSum(x[j][i] for i in locations) == 1
     for i in locations:
-        prob += (
-            pulp.lpSum(x[j][i] for j in apps) + pulp.lpSum(y[f][i] for f in folders)
-            <= 1
-        )
-    for f in folders:
-        prob += pulp.lpSum(z[j][f] for j in apps) <= M * pulp.lpSum(
-            y[f][i] for i in locations
-        )
-        prob += pulp.lpSum(z[j][f] for j in apps) <= folder_capacity
-        prob += pulp.lpSum(y[f][i] for i in locations) <= 1
-        prob += pulp.lpSum(y[f][i] for i in locations) <= pulp.lpSum(
-            z[j][f] for j in apps
-        )
-    for j in apps:
-        for f in folders:
-            if app_genre[j] != f:
-                prob += z[j][f] == 0
-    for j in apps:
-        for f in folders:
-            for i in locations:
-                prob += q[j][f][i] <= y[f][i]
-                prob += q[j][f][i] <= z[j][f]
-                prob += q[j][f][i] >= y[f][i] + z[j][f] - 1
-    prob.solve()
+        prob += pulp.lpSum(x[j][i] for j in app_names) <= 1
 
+    prob.solve()
     status = pulp.LpStatus[prob.status]
     if status != "Optimal":
-        return None, None, status
+        return None, status
 
-    layout = {i: "___(空)___" for i in locations}
-    folders_content = {f: [] for f in folders}
+    layout = {i: None for i in locations}
     for i in locations:
-        for j in apps:
+        for j in app_names:
             if pulp.value(x[j][i]) > 0.5:
-                layout[i] = j
-        for f in folders:
-            if pulp.value(y[f][i]) > 0.5:
-                layout[i] = f"F:{f}"
-    for j in apps:
-        for f in folders:
-            if pulp.value(z[j][f]) > 0.5:
-                folders_content[f].append(j)
+                layout[i] = app_map[j]
 
-    return layout, folders_content, status
+    return layout, status

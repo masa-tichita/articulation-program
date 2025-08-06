@@ -17,61 +17,66 @@ import pandas as pd
 import streamlit.components.v1 as components
 
 # 初期データ(streamlit上で変更・追加可能)
-INITIAL_DATA = {
-    "LINE": {"usage": 46, "genre": "SNS"},
-    "X": {"usage": 26, "genre": "SNS"},
-    "YouTube": {"usage": 21, "genre": "Entertainment"},
-    "Instagram": {"usage": 18, "genre": "SNS"},
-    "Slack": {"usage": 18, "genre": "Work"},
-    "Chrome": {"usage": 14, "genre": "Utility"},
-    "カメラ": {"usage": 11, "genre": "Utility"},
-    "Google Maps": {"usage": 7, "genre": "Utility"},
-    "時計": {"usage": 5, "genre": "Utility"},
-    "Teams": {"usage": 5, "genre": "Work"},
-    "乗換案内": {"usage": 5, "genre": "Utility"},
-    "ゆうちょ通帳": {"usage": 5, "genre": "Finance"},
-    "PayPay": {"usage": 5, "genre": "Finance"},
-    "Gmail": {"usage": 4, "genre": "Work"},
-    "写真": {"usage": 3, "genre": "Utility"},
-    "Google": {"usage": 3, "genre": "Utility"},
-    "Notion": {"usage": 3, "genre": "Work"},
-    "Google カレンダー": {"usage": 2, "genre": "Work"},
-    "BAND": {"usage": 2, "genre": "SNS"},
-    "ウォレット": {"usage": 1, "genre": "Finance"},
-    "Facebook": {"usage": 1, "genre": "SNS"},
-    "Discord": {"usage": 1, "genre": "SNS"},
-    "NewsPicks": {"usage": 1, "genre": "News"},
+INITIAL_APPS_DATA = {
+    "LINE": {"usage": 46, "genre": "SNS", "color": "green"},
+    "X": {"usage": 26, "genre": "SNS", "color": "black"},
+    "YouTube": {"usage": 21, "genre": "Entertainment", "color": "red"},
+    "Instagram": {"usage": 18, "genre": "SNS", "color": "red"},
+    "Slack": {"usage": 18, "genre": "Work", "color": "purple"},
+    "Chrome": {"usage": 14, "genre": "Utility", "color": "blue"},
+    "カメラ": {"usage": 11, "genre": "Utility", "color": "grey"},
+    "Google Maps": {"usage": 7, "genre": "Utility", "color": "red"},
+    "時計": {"usage": 5, "genre": "Utility", "color": "black"},
+    "Teams": {"usage": 5, "genre": "Work", "color": "blue"},
+    "乗換案内": {"usage": 5, "genre": "Utility", "color": "green"},
+    "ゆうちょ通帳": {"usage": 5, "genre": "Finance", "color": "green"},
+    "PayPay": {"usage": 5, "genre": "Finance", "color": "red"},
+    "Gmail": {"usage": 4, "genre": "Work", "color": "red"},
+    "写真": {"usage": 3, "genre": "Utility", "color": "blue"},
+    "Google": {"usage": 3, "genre": "Utility", "color": "blue"},
+    "Notion": {"usage": 3, "genre": "Work", "color": "black"},
+    "Google カレンダー": {"usage": 2, "genre": "Work", "color": "blue"},
+    "BAND": {"usage": 2, "genre": "SNS", "color": "green"},
+    "ウォレット": {"usage": 1, "genre": "Finance", "color": "blue"},
+    "Facebook": {"usage": 1, "genre": "SNS", "color": "blue"},
+    "Discord": {"usage": 1, "genre": "SNS", "color": "blue"},
+    "NewsPicks": {"usage": 1, "genre": "News", "color": "black"},
 }
+
+INITIAL_WEIGHTS_DATA = {
+    1: 50, 2: 55, 3: 55, 4: 50, 5: 45, 6: 45, 7: 45, 8: 45,
+    9: 35, 10: 25, 11: 25, 12: 35, 13: 25, 14: 60, 15: 60, 16: 25,
+    17: 25, 18: 60, 19: 60, 20: 25, 21: 35, 22: 25, 23: 25, 24: 35,
+    25: 45, 26: 40, 27: 40, 28: 45,
+}
+
 
 
 def display_rich_smartphone_ui(layout_data, style: str):
     """独自CSSでスマホUIを作成する関数"""
     main_screen_items = ""
     for loc_id in range(1, 25):
-        item = layout_data.get(loc_id, "___(空)___")
+        item = layout_data.get(loc_id)
         item_html = ""
-        if item.startswith("F:"):
-            folder_name = item.split(":")[1]
-            item_html = f'<div class="folder-icon"><span>📁</span>{folder_name}</div>'
-        elif item != "___(空)___":
+        if item:
             emoji = "📱"
-            if any(x in item for x in ["カメラ", "写真"]):
+            if any(x in item.name for x in ["カメラ", "写真"]):
                 emoji = "🖼️"
-            if any(x in item for x in ["Maps", "乗換"]):
+            if any(x in item.name for x in ["Maps", "乗換"]):
                 emoji = "🗺️"
-            item_html = f'<div class="app-icon"><span>{emoji}</span>{item}</div>'
+            item_html = f'<div class="app-icon" style="background-color: {item.color}; color: white;"><span>{emoji}</span>{item.name}</div>'
         else:
             item_html = '<div class="empty-slot"></div>'
         main_screen_items += item_html
 
     dock_items = ""
     for loc_id in range(25, 29):
-        item = layout_data.get(loc_id, "___(空)___")
-        if item != "___(空)___" and not item.startswith("F:"):
+        item = layout_data.get(loc_id)
+        if item:
             emoji = "📱"
-            if any(x in item for x in ["LINE", "Discord", "Slack"]):
+            if any(x in item.name for x in ["LINE", "Discord", "Slack"]):
                 emoji = "💬"
-            dock_items += f'<div class="app-icon"><span>{emoji}</span>{item}</div>'
+            dock_items += f'<div class="app-icon" style="background-color: {item.color}; color: white;"><span>{emoji}</span>{item.name}</div>'
         else:
             dock_items += '<div class="empty-slot"></div>'
 
@@ -104,25 +109,24 @@ def app_view_optimize():
     titles_en_to_ja()
     st.title("📱 アプリ配置最適化")
     st.sidebar.header("設定")
-    folder_penalty_input = st.sidebar.slider(
-        "フォルダのペナルティ",
-        0,
-        50,
-        20,
-        help="値が大きいほどフォルダ化されにくくなります。",
+    color_penalty_input = st.sidebar.slider(
+        "色のペナルティ", 0, 100, 0, help="値が大きいほど同色アプリが離れて配置されます。"
     )
 
     # 初期モデル/DFを用意
-    base_models = AppData.from_mapping(INITIAL_DATA)  # -> list[AppData]
+    base_models = AppData.from_mapping(INITIAL_APPS_DATA)  # -> list[AppData]
     base_df = AppData.to_df(base_models)  # -> DataFrame
+    base_weights_df = pd.DataFrame(
+        list(INITIAL_WEIGHTS_DATA.items()), columns=["location", "weight"]
+    )
 
     # state 初期化
     if "apps_df" not in st.session_state:
         st.session_state.apps_df = base_df
     if "apps_models" not in st.session_state:
         st.session_state.apps_models = base_models
-    if "apps_dict" not in st.session_state:
-        st.session_state.apps_dict = AppData.to_solver_dict(base_models)
+    if "weights_df" not in st.session_state:
+        st.session_state.weights_df = base_weights_df
 
     with st.sidebar.expander("📋 アプリ一覧（編集可）", expanded=True):
         edited_df = st.data_editor(
@@ -134,6 +138,7 @@ def app_view_optimize():
                 "name": st.column_config.TextColumn("アプリ名", required=True),
                 "usage": st.column_config.NumberColumn("使用回数", min_value=0, step=1),
                 "genre": st.column_config.TextColumn("ジャンル"),
+                "color": st.column_config.TextColumn("色"),
             },
             key="apps_editor",
         )
@@ -165,37 +170,52 @@ def app_view_optimize():
                 else:
                     st.session_state.apps_df = edited_df
                     st.session_state.apps_models = models
-                    st.session_state.apps_dict = AppData.to_solver_dict(models)
                     st.success("アプリ一覧を反映しました。")
 
         with c2:
             if st.button("リセット", use_container_width=True):
                 st.session_state.apps_df = base_df
                 st.session_state.apps_models = base_models
-                st.session_state.apps_dict = AppData.to_solver_dict(base_models)
                 st.info("初期値に戻しました。")
 
+    with st.sidebar.expander("🏋️ 重み（場所の価値）", expanded=False):
+        edited_weights_df = st.data_editor(
+            st.session_state.weights_df,
+            hide_index=True,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "location": st.column_config.NumberColumn("ロケーション番号", required=True, min_value=1, max_value=28),
+                "weight": st.column_config.NumberColumn("重み", min_value=0, step=1),
+            },
+            key="weights_editor",
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("重みを反映", use_container_width=True):
+                st.session_state.weights_df = edited_weights_df
+                st.success("重みを反映しました。")
+        with c2:
+            if st.button("重みをリセット", use_container_width=True):
+                st.session_state.weights_df = base_weights_df
+                st.info("重みを初期値に戻しました。")
+
     if st.sidebar.button("最適化を実行", type="primary"):
+        # DataFrameをdictに変換して渡す
+        weights_dict = st.session_state.weights_df.set_index('location')['weight'].to_dict()
         with st.spinner("最適配置を計算中..."):
-            layout, folders_content, status = solve_layout(
-                st.session_state.apps_dict, folder_penalty_input
+            layout, status = solve_layout(
+                st.session_state.apps_models,
+                weights=weights_dict,
+                color_penalty_val=color_penalty_input,
             )
 
         if status == "Optimal":
             st.success("最適配置が完了しました！")
-            col1, col2 = st.columns([1, 1.5])
-            with col1:
-                smartphone_raw_css = Path(f"{get_src_root()}/assets/smartphone.css")
-                smartphone_style = smartphone_raw_css.read_text(encoding="utf-8")
-                display_rich_smartphone_ui(layout, smartphone_style)
-            with col2:
-                st.subheader("📁 フォルダの中身")
-                if folders_content:
-                    for f, app_list in folders_content.items():
-                        if app_list:
-                            st.markdown(f"**{f}**: `{'`, `'.join(app_list)}`")
-                else:
-                    st.info("作成されたフォルダはありません。")
+            smartphone_raw_css = Path(f"{get_src_root()}/assets/smartphone.css")
+            smartphone_style = smartphone_raw_css.read_text(encoding="utf-8")
+            display_rich_smartphone_ui(layout, smartphone_style)
         else:
             st.error(
                 f"最適解が見つかりませんでした (ステータス: {status})。制約が厳しすぎる可能性があります。"
