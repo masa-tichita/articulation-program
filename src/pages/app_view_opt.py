@@ -24,22 +24,17 @@ INITIAL_APPS_DATA = {
     "Google Maps": {"usage": 7, "color": "red"},
 }
 
-
 # --- UI描画関数 ---
-def display_dynamic_layout_ui(
-    layout_data, style: str, rows: int, cols: int, dock_size: int
-):
-    """動的なグリッドレイアウトでUIを作成する関数"""
+def display_dynamic_layout_ui(layout_data, style: str, rows: int, cols: int, dock_size: int):
+    # (この関数は変更なし)
     num_main_locations = rows * cols
     main_screen_items = ""
     for loc_id in range(1, num_main_locations + 1):
         item = layout_data.get(loc_id)
         if item:
             emoji = "📱"
-            if any(x in item.name for x in ["カメラ", "写真"]):
-                emoji = "🖼️"
-            if any(x in item.name for x in ["Maps", "乗換"]):
-                emoji = "🗺️"
+            if any(x in item.name for x in ["カメラ", "写真"]): emoji = "🖼️"
+            if any(x in item.name for x in ["Maps", "乗換"]): emoji = "🗺️"
             main_screen_items += f'<div class="app-icon" style="background-color: {item.color};"><span>{emoji}</span>{item.name}</div>'
         else:
             main_screen_items += '<div class="empty-slot"></div>'
@@ -49,8 +44,7 @@ def display_dynamic_layout_ui(
         item = layout_data.get(loc_id)
         if item:
             emoji = "📱"
-            if any(x in item.name for x in ["LINE", "Discord", "Slack"]):
-                emoji = "💬"
+            if any(x in item.name for x in ["LINE", "Discord", "Slack"]): emoji = "💬"
             dock_items += f'<div class="app-icon" style="background-color: {item.color};"><span>{emoji}</span>{item.name}</div>'
         else:
             dock_items += '<div class="empty-slot"></div>'
@@ -72,160 +66,154 @@ def display_dynamic_layout_ui(
     """
     components.html(final_html, height=120 + rows * 85)
 
+# --- データ処理関数 ---
+def load_and_validate_df(uploader_key, required_cols, dtype_map=None):
+    uploaded_file = st.file_uploader(
+        "CSV/Excel", type=["csv", "xlsx", "xls"], key=uploader_key, label_visibility="collapsed"
+    )
+    if uploaded_file is None:
+        return None
+    
+    try:
+        if uploaded_file.name.endswith('.csv'):
+            try:
+                df = pd.read_csv(uploaded_file, encoding='utf-8')
+            except UnicodeDecodeError:
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, encoding='cp932')
+        else:
+            df = pd.read_excel(uploaded_file)
+
+        if not all(col in df.columns for col in required_cols):
+            st.error(f"ファイルには次のカラムが必要です: {required_cols}")
+            return None
+        
+        if dtype_map:
+            df = df.astype(dtype_map)
+        return df[required_cols]
+
+    except Exception as e:
+        st.error(f"ファイル読み込みエラー: {e}")
+        return None
 
 # --- 状態管理 ---
 def update_weights_based_on_layout():
-    """レイアウト設定の変更に応じて重みデータを更新する"""
-    rows = st.session_state.layout_rows
-    cols = st.session_state.layout_cols
-    dock = st.session_state.dock_size
+    rows, cols, dock = st.session_state.layout_rows, st.session_state.layout_cols, st.session_state.dock_size
     total_locations = rows * cols + dock
-
-    # 現在の重みデータとサイズが異なれば、新しいデフォルト値で再生成
+    
     current_weights_size = len(st.session_state.get("weights_df", []))
     if total_locations != current_weights_size:
         new_weights = {i: 10 for i in range(1, total_locations + 1)}
-        new_weights_list = [
-            {"location": k, "weight": v} for k, v in new_weights.items()
-        ]
-        st.session_state.weights_df = pd.DataFrame(new_weights_list)
-
+        st.session_state.weights_df = pd.DataFrame([{'location': k, 'weight': v} for k, v in new_weights.items()])
 
 def initialize_session_state():
-    """セッション状態を初期化する"""
-    if "current_time" not in st.session_state:
-        st.session_state.current_time = datetime.now().strftime("%-H:%M")
+    if "current_time" not in st.session_state: st.session_state.current_time = datetime.now().strftime("%-H:%M")
+    if "layout_rows" not in st.session_state: st.session_state.layout_rows = 4
+    if "layout_cols" not in st.session_state: st.session_state.layout_cols = 8
+    if "dock_size" not in st.session_state: st.session_state.dock_size = 6
 
-    # レイアウト設定の初期化
-    if "layout_rows" not in st.session_state:
-        st.session_state.layout_rows = 4
-    if "layout_cols" not in st.session_state:
-        st.session_state.layout_cols = 8
-    if "dock_size" not in st.session_state:
-        st.session_state.dock_size = 6
-
-    # アプリデータ
     if "apps_df" not in st.session_state:
-        base_models = AppData.from_mapping(INITIAL_APPS_DATA)
-        st.session_state.apps_df = AppData.to_df(base_models)
-        st.session_state.apps_models = base_models
+        st.session_state.apps_df = AppData.to_df(AppData.from_mapping(INITIAL_APPS_DATA))
 
-    # 重みデータ（初回のみ、またはレイアウト変更時に更新）
     if "weights_df" not in st.session_state:
         update_weights_based_on_layout()
 
-
 # --- サイドバーUI ---
 def setup_sidebar():
-    """サイドバーのUI要素を配置・管理する"""
     st.sidebar.header("設定")
 
     with st.sidebar.expander("📐 レイアウト設定", expanded=True):
-        st.number_input(
-            "行数", 1, 10, key="layout_rows", on_change=update_weights_based_on_layout
-        )
-        st.number_input(
-            "列数", 1, 12, key="layout_cols", on_change=update_weights_based_on_layout
-        )
-        st.number_input(
-            "Dockアプリアイコン数",
-            1,
-            15,
-            key="dock_size",
-            on_change=update_weights_based_on_layout,
-        )
+        st.number_input("行数", 1, 10, key="layout_rows", on_change=update_weights_based_on_layout)
+        st.number_input("列数", 1, 12, key="layout_cols", on_change=update_weights_based_on_layout)
+        st.number_input("Dock数", 1, 15, key="dock_size", on_change=update_weights_based_on_layout)
 
-    color_penalty = st.sidebar.slider(
-        "色のペナルティ",
-        0,
-        100,
-        0,
-        help="値が大きいほど同色アプリが離れて配置されます。",
-    )
+    color_penalty = st.sidebar.slider("色のペナルティ", 0, 100, 0)
 
-    with st.sidebar.expander("📋 アプリ一覧（編集可）", expanded=False):
-        edited_df = st.data_editor(
-            st.session_state.apps_df,
-            hide_index=True,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "name": st.column_config.TextColumn("アプリ名", required=True),
-                "usage": st.column_config.NumberColumn("使用回数", min_value=0, step=1),
-                "color": st.column_config.TextColumn("色"),
-            },
+    with st.sidebar.expander("📋 アプリ一覧", expanded=False):
+        st.markdown("**手動編集**")
+        edited_apps_df = st.data_editor(
+            st.session_state.apps_df, num_rows="dynamic", key="apps_editor",
+            column_config={"name": "アプリ名", "usage": "使用回数", "color": "色"}
         )
-        if st.button("アプリ一覧を反映"):
-            # (省略) validationロジックは元のまま
-            st.session_state.apps_df = edited_df
-            # (省略) modelの更新ロジックも元のまま
-            st.success("アプリ一覧を反映しました。")
+        if st.button("手動編集を反映"):
+            st.session_state.apps_df = edited_apps_df
+            st.success("アプリ一覧を更新しました。")
 
-    with st.sidebar.expander("🏋️ 重み（場所の価値）", expanded=False):
-        # `key` を動的にして、レイアウト変更時にdata_editorを再生成させる
-        editor_key = f"weights_editor_{st.session_state.layout_rows}_{st.session_state.layout_cols}_{st.session_state.dock_size}"
+        st.markdown("**ファイルから読込**")
+        new_apps_df = load_and_validate_df("apps_uploader", ["name", "usage", "color"])
+        if new_apps_df is not None and st.button("ファイル内容を反映", key="apply_apps_file"):
+            st.session_state.apps_df = new_apps_df
+            st.success("アプリ一覧をファイルから更新しました。")
+            st.rerun()
+
+    with st.sidebar.expander("🏋️ 重み", expanded=False):
+        st.markdown("**手動編集**")
+        editor_key = f"weights_editor_{len(st.session_state.weights_df)}"
         edited_weights_df = st.data_editor(
-            st.session_state.weights_df,
-            hide_index=True,
-            num_rows="dynamic",
-            use_container_width=True,
-            key=editor_key,
-            column_config={
-                "location": st.column_config.NumberColumn(
-                    "ロケーション番号", required=True, min_value=1
-                ),
-                "weight": st.column_config.NumberColumn("重み", min_value=0, step=1),
-            },
+            st.session_state.weights_df, num_rows="dynamic", key=editor_key,
+            column_config={"location": "ロケーション番号", "weight": "重み"}
         )
-        if st.button("重みを反映"):
+        if st.button("手動編集を反映", key="apply_weights_manual"):
             st.session_state.weights_df = edited_weights_df
-            st.success("重みを反映しました。")
+            st.success("重みを更新しました。")
 
+        st.markdown("**ファイルから読込**")
+        new_weights_df = load_and_validate_df(
+            "weights_uploader", ["location", "weight"], {"location": int, "weight": int}
+        )
+        if new_weights_df is not None and st.button("ファイル内容を反映", key="apply_weights_file"):
+            st.session_state.weights_df = new_weights_df
+            st.success("重みをファイルから更新しました。")
+            st.rerun()
+            
     return color_penalty
-
 
 # --- メイン処理 ---
 def app_view_optimize():
+    st.set_page_config(page_title="アプリ配置最適化", layout="wide")
     titles_en_to_ja()
     st.title("📱 アプリ配置最適化")
-
+    
     initialize_session_state()
     color_penalty_input = setup_sidebar()
 
     if st.sidebar.button("最適化を実行", type="primary"):
-        weights_dict = st.session_state.weights_df.set_index("location")[
-            "weight"
-        ].to_dict()
+        try:
+            # nameが空(NA)の行を削除し、データを検証・変換する
+            valid_apps_df = st.session_state.apps_df.dropna(subset=['name'])
+            app_records = valid_apps_df.to_dict('records')
+            apps_models = [AppData.model_validate(rec) for rec in app_records]
 
+            # 重みデータも同様に検証
+            valid_weights_df = st.session_state.weights_df.dropna()
+            weights_dict = valid_weights_df.set_index('location')['weight'].to_dict()
+
+            if not apps_models:
+                st.warning("最適化対象のアプリがありません。アプリ一覧を確認してください。")
+                st.stop()
+
+        except Exception as e:
+            st.error(f"データ検証エラー: {e}")
+            st.stop()
+        
         with st.spinner("最適配置を計算中..."):
             layout, status = solve_layout(
-                apps=st.session_state.apps_models,
-                weights=weights_dict,
-                rows=st.session_state.layout_rows,
-                cols=st.session_state.layout_cols,
-                dock_size=st.session_state.dock_size,
-                color_penalty_val=color_penalty_input,
+                apps=apps_models, weights=weights_dict,
+                rows=st.session_state.layout_rows, cols=st.session_state.layout_cols,
+                dock_size=st.session_state.dock_size, color_penalty_val=color_penalty_input,
             )
 
         if status == "Optimal":
             st.success("最適配置が完了しました！")
-            layout_css = Path(f"{get_src_root()}/assets/layout.css").read_text(
-                encoding="utf-8"
-            )
+            layout_css = Path(f"{get_src_root()}/assets/layout.css").read_text(encoding="utf-8")
             display_dynamic_layout_ui(
-                layout,
-                layout_css,
-                st.session_state.layout_rows,
-                st.session_state.layout_cols,
-                st.session_state.dock_size,
+                layout, layout_css, st.session_state.layout_rows, 
+                st.session_state.layout_cols, st.session_state.dock_size
             )
         else:
             st.error(f"最適解が見つかりませんでした (ステータス: {status})。")
     else:
-        st.info(
-            "サイドバーでパラメータを調整し、「最適化を実行」ボタンを押してください。"
-        )
-
+        st.info("サイドバーでパラメータを調整し、「最適化を実行」ボタンを押してください。")
 
 if __name__ == "__main__":
     app_view_optimize()
