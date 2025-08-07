@@ -85,7 +85,7 @@ def load_and_validate_df(uploader_key, required_cols, dtype_map=None):
             df = pd.read_excel(uploaded_file)
 
         if not all(col in df.columns for col in required_cols):
-            st.error(f"ファイルには次のカラムが必要です: {required_cols}")
+            st.error(f"ファイルのカラムが不正です。必須: {required_cols}, 検出: {list(df.columns)}")
             return None
         
         if dtype_map:

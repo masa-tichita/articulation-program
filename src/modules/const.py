@@ -6,7 +6,7 @@ import pandas as pd
 
 class AppData(BaseModel):
     name: str
-    usage: int
+    usage: float
     color: str
 
     @classmethod
