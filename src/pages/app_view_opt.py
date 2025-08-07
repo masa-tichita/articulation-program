@@ -192,6 +192,12 @@ def app_view_optimize():
                 st.warning("最適化対象のアプリがありません。アプリ一覧を確認してください。")
                 st.stop()
 
+            # アプリ数が配置場所の数を超えていないかチェック
+            total_locations = st.session_state.layout_rows * st.session_state.layout_cols + st.session_state.dock_size
+            if len(apps_models) > total_locations:
+                st.error(f"アプリの数({len(apps_models)})が配置場所の数({total_locations})を超えています。レイアウト設定を調整するか、アプリの数を減らしてください。")
+                st.stop()
+
         except Exception as e:
             st.error(f"データ検証エラー: {e}")
             st.stop()

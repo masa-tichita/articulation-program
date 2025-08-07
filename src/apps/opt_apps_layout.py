@@ -100,12 +100,10 @@ def solve_layout(
     # 制約条件
     # 各アプリは1つのロケーションにのみ配置
     for j in app_names:
-        prob += pulp.lpSum(x[j][i] for i in locations) == 1
+        prob += pulp.lpSum(x[j][i] for i in locations) <= 1
     # 各ロケーションには最大1つ以下のアプリを配置
     for i in locations:
         prob += pulp.lpSum(x[j][i] for j in app_names) <= 1
-    # アプリの数はロケーションの数以下
-    prob += len(app_names) <= len(locations)
 
     prob.solve(pulp.PULP_CBC_CMD(msg=False))
     status = pulp.LpStatus[prob.status]
